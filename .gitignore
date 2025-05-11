@@ -1,4 +1,6 @@
 __pycache__/
 .DS_Store
 hf_token.txt
-circuits/
+eval_circuits/*
+circuits/*
+submissions/*
