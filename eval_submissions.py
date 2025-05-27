@@ -211,7 +211,7 @@ def main():
         for absolute in (True, False):
           try:
             results = run_evaluation(circuit_dir, model_name, task, split, method_name, level, batch_size=20, head=None,
-                        absolute=absolute, debug=True)  # TODO: remove debugging arg
+                        absolute=absolute)
           except Exception as e:
             logging.error(f"Error evaluating {model_name} on {task}: {e}")
           if results is None:
