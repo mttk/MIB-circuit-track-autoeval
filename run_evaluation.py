@@ -10,7 +10,9 @@ from eap.graph import Graph
 from MIB_circuit_track.metrics import get_metric
 from MIB_circuit_track.utils import TASKS_TO_HF_NAMES, MODEL_NAME_TO_FULLNAME, COL_MAPPING
 from MIB_circuit_track.dataset import HFEAPDataset
-from MIB_circuit_track.evaluation import evaluate_area_under_curve
+from MIB_circuit_track.evaluation import evaluate_area_under_curve, evaluate_area_under_curve_multifile
+from MIB_circuit_track.circuit_loading import load_graph_from_json, load_graph_from_pt
+
 
 def run_evaluation(circuit_path, model_name, task, split, method_name, level, batch_size=20, head=None,
                    absolute=False, debug=False):
@@ -27,19 +29,7 @@ def run_evaluation(circuit_path, model_name, task, split, method_name, level, ba
     model.cfg.use_attn_result = True
     model.cfg.use_hook_mlp_in = True
     model.cfg.ungroup_grouped_query_attention = True
-    
-    # method_name_saveable = f"{method_name}_{level}"
-    if len(os.listdir(circuit_path)) == 1:
-        for filename in os.listdir(circuit_path):
-            if filename.endswith(".pt"):
-                graph = Graph.from_pt(os.path.join(circuit_path, filename))
-            elif filename.endswith(".json"):
-                graph = Graph.from_json(os.path.join(circuit_path, filename))
-            else:
-                raise ValueError(f"Found {filename}, but is not .pt or .json")
-    
     hf_task_name = f'mib-bench/{TASKS_TO_HF_NAMES[task]}'
-
     num_examples = 1 if debug else None
     dataset = HFEAPDataset(hf_task_name, model.tokenizer, split=split, task=task, model_name=model_name,
                            num_examples=num_examples)
@@ -52,8 +42,22 @@ def run_evaluation(circuit_path, model_name, task, split, method_name, level, ba
     metric = get_metric('logit_diff', task, model.tokenizer, model)
     attribution_metric = partial(metric, mean=False, loss=False)
     
-    eval_auc_outputs = evaluate_area_under_curve(model, graph, dataloader, attribution_metric, level=level, 
-                                                 absolute=absolute)
+    # method_name_saveable = f"{method_name}_{level}"
+    if len(os.listdir(circuit_path)) == 1:
+        for filename in os.listdir(circuit_path):
+            if filename.endswith(".pt"):
+                graph = Graph.from_pt(os.path.join(circuit_path, filename))
+            elif filename.endswith(".json"):
+                graph = Graph.from_json(os.path.join(circuit_path, filename))
+            else:
+                raise ValueError(f"Found {filename}, but is not .pt or .json")
+            eval_auc_outputs = evaluate_area_under_curve(model, graph, dataloader,
+                                            attribution_metric, level=level, absolute=absolute)
+    elif len(os.listdir(circuit_path)) >= 2:
+        eval_auc_outputs = evaluate_area_under_curve_multifile(circuit_path, model, model_name, dataloader,
+                                                               attribution_metric, level=level,
+                                                               absolute=absolute)
+
     weighted_edge_counts, area_under, area_from_1, average, faithfulnesses = eval_auc_outputs
     d = {
         "weighted_edge_counts": weighted_edge_counts,

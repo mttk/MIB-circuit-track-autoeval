@@ -1,4 +1,5 @@
 import math 
+import os
 
 from typing import Literal, Optional
 
@@ -6,8 +7,11 @@ import torch
 from torch.utils.data import DataLoader
 from transformer_lens import HookedTransformer
 
+from MIB_circuit_track.circuit_loading import load_graph_from_json, load_graph_from_pt
 from eap.graph import Graph 
 from eap.evaluate import evaluate_baseline, evaluate_graph
+
+EDGE_COUNTS = {"gpt2": 32491, "qwen2.5": 179749, "gemma2": 74218, "llama3": 1592881, "interpbench": 1108}
 
 def evaluate_area_under_curve(model: HookedTransformer, graph: Graph, dataloader, metrics, quiet:bool=False, 
                               level:Literal['edge', 'node','neuron']='edge', log_scale:bool=False, absolute:bool=True, 
@@ -74,6 +78,69 @@ def evaluate_area_under_curve(model: HookedTransformer, graph: Graph, dataloader
     average = sum(faithfulnesses) / len(faithfulnesses)
     return weighted_edge_counts, area_under, area_from_1, average, faithfulnesses
 
+def evaluate_area_under_curve_multifile(circuit_path: str, model: HookedTransformer, model_name: str, dataloader, metrics, quiet:bool=False, 
+                                        level:Literal['edge', 'node','neuron']='edge', log_scale:bool=False, absolute:bool=True, 
+                                        intervention: Literal['patching', 'zero', 'mean','mean-positional', 'optimal']='patching', 
+                                        intervention_dataloader:DataLoader=None, optimal_ablation_path:Optional[str]=None, 
+                                        no_normalize:Optional[bool]=False, apply_greedy:bool=False):
+    baseline_score = evaluate_baseline(model, dataloader, metrics).mean().item()
+    new_graph = Graph.from_model(model)
+    new_graph.apply_topn(0, True)
+    corrupted_score = evaluate_graph(model, new_graph, dataloader, metrics, quiet=quiet, intervention=intervention, 
+                                     intervention_dataloader=intervention_dataloader, optimal_ablation_path=optimal_ablation_path).mean().item()
+    
+    weighted_edge_counts, faithfulnesses = [], []
+    num_valid_circuits = 0
+    for filename in os.listdir(circuit_path):
+        if num_valid_circuits >= 9:
+            break
+        if filename.endswith(".pt"):
+            graph = load_graph_from_pt(os.path.join(circuit_path, filename))
+            num_valid_circuits += 1
+        elif filename.endswith(".json"):
+            graph = load_graph_from_json(os.path.join(circuit_path, filename))
+            num_valid_circuits += 1
+        else:
+            print(f"Not a valid circuit: {filename}. Continuing.")
+            continue
+        weighted_edge_count = graph.weighted_edge_count()
+        weighted_edge_counts.append(weighted_edge_count)
+        ablated_score = evaluate_graph(model, graph, dataloader, metrics,
+                                       quiet=quiet, intervention=intervention,
+                                       intervention_dataloader=intervention_dataloader,
+                                       optimal_ablation_path=optimal_ablation_path).mean().item()
+        if no_normalize:
+            faithfulness = ablated_score
+        else:
+            faithfulness = (ablated_score - corrupted_score) / (baseline_score - corrupted_score)
+        faithfulnesses.append(faithfulness)
+    
+    # sort faithfulnesses and weighted_edge_counts jointly
+    weighted_edge_counts, faithfulnesses = zip(*sorted(zip(weighted_edge_counts, faithfulnesses)))
+    weighted_edge_counts = list(weighted_edge_counts)
+    faithfulnesses = list(faithfulnesses)
+    weighted_edge_counts.append(EDGE_COUNTS[model_name])
+    faithfulnesses.append(1.0)
+
+    percentages = (.001, .002, .005, .01, .02, .05, .1, .2, .5, 1)
+    area_under = 0.
+    area_from_1 = 0.
+    for i in range(len(faithfulnesses) - 1):
+        i_1, i_2 = i, i+1
+        x_1 = percentages[i_1]
+        x_2 = percentages[i_2]
+        # area from point to 100
+        if log_scale:
+            x_1 = math.log(x_1)
+            x_2 = math.log(x_2)
+        trapezoidal = (x_2 - x_1) * \
+                        (((abs(1. - faithfulnesses[i_1])) + (abs(1. - faithfulnesses[i_2]))) / 2)
+        area_from_1 += trapezoidal 
+        
+        trapezoidal = (x_2 - x_1) * ((faithfulnesses[i_1] + faithfulnesses[i_2]) / 2)
+        area_under += trapezoidal
+    average = sum(faithfulnesses) / len(faithfulnesses)
+    return weighted_edge_counts, area_under, area_from_1, average, faithfulnesses
 
 def compare_graphs(reference: Graph, hypothesis: Graph, by_node: bool = False):
     # Track {true, false} {positives, negatives}

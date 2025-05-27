@@ -43,7 +43,10 @@ def load_graph_from_json(json_path: str):
         g.neurons_scores = None        
     
     for name, info in d['edges'].items():
-        g.edges[name].score = info['score']
+        if 'score' in info:
+            g.edges[name].score = info['score']
+        else:
+            g.edges[name].score = 0.
         g.edges[name].in_graph = info['in_graph']
         
     return g
@@ -61,15 +64,18 @@ def load_graph_from_pt(pt_path):
         6. 'neurons': [Optional] torch.tensor[n_src_nodes, d_model], where each value in (src, neuron) indicates whether the neuron is in the graph or not
     """
     d = torch.load(pt_path)
-    required_keys = ['cfg', 'src_nodes', 'dst_nodes', 'edges_scores', 'edges_in_graph', 'nodes_in_graph']
+    required_keys = ['cfg', 'src_nodes', 'dst_nodes', 'edges_in_graph', 'nodes_in_graph']
     assert all([k in d.keys() for k in required_keys]), f"Bad torch circuit file format. Found keys - {d.keys()}, missing keys - {set(required_keys) - set(d.keys())}"
-    assert d['edges_scores'].shape == d['edges_in_graph'].shape, "Bad edges array shape"
+    # assert d['edges_scores'].shape == d['edges_in_graph'].shape, "Bad edges array shape"
     # assert d['edges'].shape == d['edges_in_graph'].shape == (len(d['src_nodes']), len(d['dst_nodes'])), "Bad edges array shape"
 
     g = Graph.from_model(d['cfg'])
 
     g.in_graph[:] = d['edges_in_graph']
-    g.scores[:] = d['edges_scores']
+    if 'edges_scores' in d:
+        g.scores[:] = d['edges_scores']
+    else:
+        g.scores[:] = torch.zeros(d['edges_in_graph'].shape)
     g.nodes_in_graph[:] = d['nodes_in_graph']
     
     if 'nodes_scores' in d:

@@ -125,6 +125,8 @@ def main():
   # 1. Fetch submissions
   # 2. Check request status, filter PENDING
   login(os.environ['HF_API_KEY'])
+  os.makedirs("logs/", exist_ok=True)
+
   fetch_submissions()
 
   submissions = filter_status(load_submissions())
@@ -148,7 +150,7 @@ def main():
 
       method_name_saveable = f"{user_name}_{method_name}_{submission_id}_{submit_time}"
       logging.basicConfig(
-        filename=f"{method_name_saveable}.log",
+        filename=f"logs/{method_name_saveable}.log",
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
       )
