@@ -1,5 +1,4 @@
 import math 
-import os
 
 from typing import Literal, Optional
 
@@ -11,7 +10,7 @@ from eap.graph import Graph
 from eap.evaluate import evaluate_baseline, evaluate_graph
 
 def evaluate_area_under_curve(model: HookedTransformer, graph: Graph, dataloader, metrics, quiet:bool=False, 
-                              level:Literal['edge', 'node','neuron']='edge', log_scale:bool=True, absolute:bool=True, 
+                              level:Literal['edge', 'node','neuron']='edge', log_scale:bool=False, absolute:bool=True, 
                               intervention: Literal['patching', 'zero', 'mean','mean-positional', 'optimal']='patching', 
                               intervention_dataloader:DataLoader=None, optimal_ablation_path:Optional[str]=None, 
                               no_normalize:Optional[bool]=False, apply_greedy:bool=False):
@@ -60,102 +59,8 @@ def evaluate_area_under_curve(model: HookedTransformer, graph: Graph, dataloader
     area_from_1 = 0.
     for i in range(len(faithfulnesses) - 1):
         i_1, i_2 = i, i+1
-        x_1 = weighted_edge_counts[i_1]
-        x_2 = weighted_edge_counts[i_2]
-        # area from point to 100
-        if log_scale:
-            x_1 = math.log(x_1)
-            x_2 = math.log(x_2)
-        trapezoidal = (x_2 - x_1) * \
-                        (((abs(1. - faithfulnesses[i_1])) + (abs(1. - faithfulnesses[i_2]))) / 2)
-        area_from_1 += trapezoidal 
-        
-        trapezoidal = (x_2 - x_1) * ((faithfulnesses[i_1] + faithfulnesses[i_2]) / 2)
-        area_under += trapezoidal
-    average = sum(faithfulnesses) / len(faithfulnesses)
-    return weighted_edge_counts, area_under, area_from_1, average, faithfulnesses
-
-
-def parse_multifile_circuitdir(circuit_dir: str):
-    """
-    Returns a list of circuit paths, sorted in ascending order by size.
-    """
-    weighted_edge_counts = []
-    circuit_paths = []
-    for basename in os.listdir(circuit_dir):
-        circuit_path = os.path.join(circuit_dir, basename)
-        if circuit_path.endswith('.json'):
-            graph = Graph.from_json(circuit_path)
-        elif circuit_path.endswith('.pt'):
-            graph = Graph.from_pt(circuit_path)
-        else:
-            raise ValueError(f"Invalid file extension: {circuit_path.suffix}")
-        weighted_edge_count = graph.weighted_edge_count()
-        weighted_edge_counts.append(weighted_edge_count)
-        circuit_paths.append(circuit_path)
-    sorted_circuit_paths = [path for _, path in sorted(zip(weighted_edge_counts, circuit_paths))]
-    return sorted_circuit_paths
-        
-
-def evaluate_area_under_curve_multifile(model: HookedTransformer, circuit_dir: str, dataloader, metrics, quiet:bool=False, 
-                              level:Literal['edge', 'node','neuron']='edge', log_scale:bool=True, absolute:bool=True, 
-                              intervention: Literal['patching', 'zero', 'mean','mean-positional', 'optimal']='patching', 
-                              intervention_dataloader:DataLoader=None, optimal_ablation_path:Optional[str]=None, 
-                              no_normalize:Optional[bool]=False, apply_greedy:bool=False):    
-    sorted_circuit_paths = parse_multifile_circuitdir(circuit_dir)
-    smallest_circuit = sorted_circuit_paths[0]
-    
-    baseline_score = evaluate_baseline(model, dataloader, metrics).mean().item()
-    graph = Graph.from_pt(smallest_circuit) if smallest_circuit.endswith(".pt") else Graph.from_json(smallest_circuit)
-    graph.apply_topn(0, True)
-    corrupted_score = evaluate_graph(model, graph, dataloader, metrics, quiet=quiet, intervention=intervention, 
-                                     intervention_dataloader=intervention_dataloader, optimal_ablation_path=optimal_ablation_path).mean().item()
-    
-    if level == 'neuron':
-        assert graph.neurons_scores is not None, "Neuron scores must be present for neuron-level evaluation"
-        n_scored_items = (~torch.isnan(graph.neurons_scores)).sum().item()
-        pass
-    elif level == 'node':
-        assert graph.nodes_scores is not None, "Node scores must be present for node-level evaluation"
-        n_scored_items = (~torch.isnan(graph.nodes_scores)).sum().item()
-        pass
-    else:
-        # n_scored_items = len(graph.edges)
-        pass
-    
-    percentages = (.001, .002, .005, .01, .02, .05, .1, .2, .5, 1)
-
-    faithfulnesses = []
-    weighted_edge_counts = []
-    for pct in percentages:
-        this_graph = graph
-        curr_num_items = int(pct * n_scored_items)
-        print(f"Computing results for {pct*100}% of {level}s (N={curr_num_items})")
-        if apply_greedy:
-            assert level == 'edge', "Greedy application only supported for edge-level evaluation"
-            this_graph.apply_greedy(curr_num_items, absolute=absolute, prune=True)
-        else:
-            this_graph.apply_topn(curr_num_items, absolute, level=level, prune=True)
-        
-        weighted_edge_count = this_graph.weighted_edge_count()
-        weighted_edge_counts.append(weighted_edge_count)
-
-        ablated_score = evaluate_graph(model, this_graph, dataloader, metrics,
-                                       quiet=quiet, intervention=intervention,
-                                       intervention_dataloader=intervention_dataloader,
-                                       optimal_ablation_path=optimal_ablation_path).mean().item()
-        if no_normalize:
-            faithfulness = ablated_score
-        else:
-            faithfulness = (ablated_score - corrupted_score) / (baseline_score - corrupted_score)
-        faithfulnesses.append(faithfulness)
-    
-    area_under = 0.
-    area_from_1 = 0.
-    for i in range(len(faithfulnesses) - 1):
-        i_1, i_2 = i, i+1
-        x_1 = weighted_edge_counts[i_1]
-        x_2 = weighted_edge_counts[i_2]
+        x_1 = percentages[i_1]
+        x_2 = percentages[i_2]
         # area from point to 100
         if log_scale:
             x_1 = math.log(x_1)
@@ -200,9 +105,11 @@ def compare_graphs(reference: Graph, hypothesis: Graph, by_node: bool = False):
         elif not obj.in_graph and not hyp_objs[obj.name].in_graph:
             TN += 1
     
-    precision = TP / (TP + FP)
+    if TP + FP == 0:
+        precision = 0
+    else:
+        precision = TP / (TP + FP)
     recall = TP / (TP + FN)
-    # f1 = (2 * precision * recall) / (precision + recall)
     TP_rate = recall
     FP_rate = FP / (FP + TN)
 
@@ -211,7 +118,7 @@ def compare_graphs(reference: Graph, hypothesis: Graph, by_node: bool = False):
             "TP_rate": TP_rate,
             "FP_rate": FP_rate}
 
-def area_under_roc(reference: Graph, hypothesis: Graph, by_node: bool = False):
+def evaluate_area_under_roc(reference: Graph, hypothesis: Graph, by_node: bool = False):
     tpr_list = []
     fpr_list = []
     precision_list = []

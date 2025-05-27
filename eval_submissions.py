@@ -128,6 +128,9 @@ def main():
   fetch_submissions()
 
   submissions = filter_status(load_submissions())
+  if len(submissions) == 0:
+    print("No submissions to evaluate. Returning.")
+    return
   pprint(submissions[0])
 
   output_dir = "eval_results"
@@ -156,7 +159,6 @@ def main():
       logging.info(f"Circuit defined at {level} level")
       logging.info("")
 
-      # TODO: Parse these parts from path
       submission_repo, submission_prefix, revision = parse_huggingface_url(circuit_path)
       suffixes = ('.pt', '.json')
       revision = data['revision']
@@ -199,29 +201,29 @@ def main():
       # TODO (Aaron): make compatible with multiple-circuit-file submissions, instead of just importances
       output_path = os.path.join(output_dir, method_name_saveable)
 
-      # for idx in range(len(circuit_dirs)):
-      #   circuit_dir = circuit_dirs[idx]
-      #   logging.info(f"Evaluating {circuit_dir}")
-      #   task = tasks[idx]
-      #   model_name = model_names[idx]
-      #   split = "test"
-      #   # We need to run evals with and without absolute to match our paper's eval setting
-      #   for absolute in (True, False):
-      #     try:
-      #       results = run_evaluation(circuit_dir, model_name, task, split, method_name, level, batch_size=20, head=None,
-      #                   absolute=absolute)
-      #     except Exception as e:
-      #       logging.error(f"Error evaluating {model_name} on {task}: {e}")
-      #     if results is None:
-      #       logging.warning(f"Evaluation did not return results for {circuit_dir}")
-      #       continue
-      #     logging.info(f"Finished evaluation for {circuit_dir}")
+      for idx in range(len(circuit_dirs)):
+        circuit_dir = circuit_dirs[idx]
+        logging.info(f"Evaluating {circuit_dir}")
+        task = tasks[idx]
+        model_name = model_names[idx]
+        split = "test"
+        # We need to run evals with and without absolute to match our paper's eval setting
+        for absolute in (True, False):
+          try:
+            results = run_evaluation(circuit_dir, model_name, task, split, method_name, level, batch_size=20, head=None,
+                        absolute=absolute, debug=True)  # TODO: remove debugging arg
+          except Exception as e:
+            logging.error(f"Error evaluating {model_name} on {task}: {e}")
+          if results is None:
+            logging.warning(f"Evaluation did not return results for {circuit_dir}")
+            continue
+          logging.info(f"Finished evaluation for {circuit_dir}")
           
-      #     os.makedirs(output_path, exist_ok=True)
-      #     with open(f"{output_path}/{task}_{model_name}_{split}_abs-{absolute}.pkl", 'wb') as f:
-      #       pickle.dump(results, f)
-      #     logging.info("Results saved.")
-      #     logging.info("")
+          os.makedirs(output_path, exist_ok=True)
+          with open(f"{output_path}/{task}_{model_name}_{split}_abs-{absolute}.pkl", 'wb') as f:
+            pickle.dump(results, f)
+          logging.info("Results saved.")
+          logging.info("")
 
       # 5. validate results and update status
       tasks, models = set(), set()
@@ -256,6 +258,7 @@ def main():
         fp = os.path.join(output_path, results_file)
         print(results_file)
         task_name, model_name, _, is_absolute = results_file.split("_")
+        task_name = task_name.replace("-", "_")
         if model_name not in results_by_model:
           results_by_model[model_name] = {}
         if task_name not in results_by_model[model_name]:
