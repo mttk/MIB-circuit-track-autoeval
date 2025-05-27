@@ -1,10 +1,14 @@
 TASKS_TO_HF_NAMES = {
-    'ioi': 'ioi',
-    'mcqa': 'copycolors_mcqa',
-    'arithmetic_addition': 'arithmetic_addition',
-    'arithmetic_subtraction': 'arithmetic_subtraction',
-    'arc_easy': 'arc_easy',
-    'arc_challenge': 'arc_challenge',
+    'ioi': 'ioi_private_test',
+    'mcqa': 'copycolors_mcqa_private_test',
+    'arithmetic_addition': 'arithmetic_addition_private_test',
+    'arithmetic-addition': 'arithmetic_addition_private_test',
+    'arithmetic_subtraction': 'arithmetic_subtraction_private_test',
+    'arithmetic-subtraction': 'arithmetic_subtraction_private_test',
+    'arc_easy': 'arc_easy_private_test',
+    'arc-easy': 'arc_easy_private_test',
+    'arc_challenge': 'arc_challenge_private_test',
+    'arc-challenge': 'arc_challenge_private_test',
 }
 
 MODEL_NAME_TO_FULLNAME = {

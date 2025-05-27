@@ -14,31 +14,30 @@ from MIB_circuit_track.evaluation import evaluate_area_under_curve
 def run_evaluation(circuit_path, model_name, task, split, method_name, level, batch_size=20, head=None,
                    absolute=False):
     if f"{task.replace('_', '-')}_{model_name}" not in COL_MAPPING:
-        print(f"Unrecognized task: {task}")
-        return
+        print(f"Non-valid task/model combo: {task}_{model_name}")
+        return None
     
     model = HookedTransformer.from_pretrained(MODEL_NAME_TO_FULLNAME[model_name])
     model.cfg.use_split_qkv_input = True
     model.cfg.use_attn_result = True
     model.cfg.use_hook_mlp_in = True
     model.cfg.ungroup_grouped_query_attention = True
-
-    circuit_dir = os.path.dirname(circuit_path)
     
-    method_name_saveable = f"{method_name}_{level}"
-    p = circuit_path
-    # p = f"{args.circuit_dir}/{method_name_saveable}/{task.replace('_', '-')}_{model_name}/importances.pt"
-
-    print(f"Loading circuit from {p}")
-    if p.endswith('.json'):
-        graph = Graph.from_json(p)
-    elif p.endswith('.pt'):
-        graph = Graph.from_pt(p)
-    else:
-        raise ValueError(f"Invalid file extension: {p.suffix}")
+    # method_name_saveable = f"{method_name}_{level}"
+    if len(os.listdir(circuit_path)) == 1:
+        for filename in os.listdir(circuit_path):
+            if filename.endswith(".pt"):
+                graph = Graph.from_pt(os.path.join(circuit_path, filename))
+            elif filename.endswith(".json"):
+                graph = Graph.from_json(os.path.join(circuit_path, filename))
+            else:
+                raise ValueError(f"Found {filename}, but is not .pt or .json")
     
     hf_task_name = f'mib-bench/{TASKS_TO_HF_NAMES[task]}'
-    dataset = HFEAPDataset(hf_task_name, model.tokenizer, split=split, task=task, model_name=model_name)
+
+    # TODO: remove debugging arg
+    dataset = HFEAPDataset(hf_task_name, model.tokenizer, split=split, task=task, model_name=model_name,
+                           num_examples=1)
     if head is not None:
         if len(dataset) < head:
             print(f"Warning: dataset has only {len(dataset)} examples, but head is set to {head}; using all examples.")
