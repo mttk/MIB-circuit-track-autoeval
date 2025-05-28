@@ -7,7 +7,6 @@ from pprint import pprint
 
 from urllib.parse import urlparse
 from huggingface_hub import snapshot_download, login, HfApi
-# from messaging import send_email
 
 from run_evaluation import run_evaluation
 from MIB_circuit_track.utils import TASKS_TO_HF_NAMES, MODEL_NAME_TO_FULLNAME, COL_MAPPING
@@ -15,7 +14,6 @@ from MIB_circuit_track.utils import TASKS_TO_HF_NAMES, MODEL_NAME_TO_FULLNAME, C
 STATUS_PENDING = 'PENDING'
 STATUS_FINISHED = 'FINISHED'
 STATUS_FAILED = 'FAILED'
-STATUS_FINISHED = 'FINISHED'
 
 SUBMISSION_DIR = 'submissions/'
 CIRCUITS_DIR = 'eval_circuits/'
@@ -114,12 +112,6 @@ def download_circuit(url, rootdir=''):
 
   req.urlretrieve(url, filepath)
   return filepath
-
-
-# def email_on_complete(author_email, new_status):
-#   send_email(sender=SHARED_TASK_EMAIL, receiver=author_email,
-#              subject="[MIB] Status change", content="")
-
 
 def main():
   # 1. Fetch submissions
@@ -299,10 +291,6 @@ def main():
         update_request(data, new_status, filepath)
       except Exception as e:
         logging.error(f"Error updating status of request: {e}. Should retry.")
-
-      # 7. Send an email to the submission contact informing of status change
-      # TODO: login to gmail with whichever acct will be used
-      # email_on_complete(author_email=sub['contact_email'], new_status=new_status)
 
 if __name__ == '__main__':
   main()
