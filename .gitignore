@@ -5,3 +5,4 @@ eval_circuits/*
 circuits/*
 submissions/*
 slurm_scripts/*
+logs/*

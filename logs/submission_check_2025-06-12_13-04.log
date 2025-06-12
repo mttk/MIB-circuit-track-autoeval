@@ -1,4 +1,0 @@
-2025-06-12 13:04:54,932 - INFO - Submissions pre-filtering: 1
-2025-06-12 13:04:54,932 - INFO - Updating mib-bench_test1_eElWJRhW5RgCH-F4_2025-04-14T22:20:49Z request status to QUEUED; uploading update to requests repo.
-2025-06-12 13:04:54,932 - INFO - Running 1 pending jobs on local.
-2025-06-12 13:04:54,932 - INFO - Triggering local eval.
