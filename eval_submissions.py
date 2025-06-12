@@ -1,138 +1,41 @@
 import os, sys, json, tempfile
-import urllib.request as req
 import pickle
 import logging
 
 from pprint import pprint
 
-from urllib.parse import urlparse
+
 from huggingface_hub import snapshot_download, login, HfApi
 
 from run_evaluation import run_evaluation
 from MIB_circuit_track.utils import TASKS_TO_HF_NAMES, MODEL_NAME_TO_FULLNAME, COL_MAPPING
-
-STATUS_PENDING = 'PENDING'
-STATUS_FINISHED = 'FINISHED'
-STATUS_FAILED = 'FAILED'
-
-SUBMISSION_DIR = 'submissions/'
-CIRCUITS_DIR = 'eval_circuits/'
-SUBMISSIONS_REPO = 'mib-bench/requests-subgraph'
-RESULTS_REPO = 'mib-bench/subgraph-results'
-
-SHARED_TASK_EMAIL = '' # TODO: update
-API = HfApi()
-
-def parse_huggingface_url(url: str):
-    """
-    Extracts repo_id and subfolder path from a Hugging Face URL.
-    Returns (repo_id, folder_path).
-    """
-    # Handle cases where the input is already a repo_id (no URL)
-    if not url.startswith(("http://", "https://")):
-        return url, None
-    
-    parsed = urlparse(url)
-    path_parts = parsed.path.strip("/").split("/")
-    revision = "main"
-    
-    # Extract repo_id (username/repo_name)
-    if len(path_parts) < 2:
-        return None, None, None     # Can't extract repo_id
-    else:
-        repo_id = f"{path_parts[0]}/{path_parts[1]}"
-    
-    # Extract folder path (if in /tree/ or /blob/)
-    if "tree" in path_parts or "blob" in path_parts:
-        try:
-            branch_idx = path_parts.index("tree") if "tree" in path_parts else path_parts.index("blob")
-            folder_path = "/".join(path_parts[branch_idx + 2:])  # Skip "tree/main" or "blob/main"
-            revision = path_parts[branch_idx + 1]
-        except (ValueError, IndexError):
-            folder_path = None
-    else:
-        folder_path = None
-    
-    return repo_id, folder_path, revision
-
-
-def fetch_submissions():
-  # TODO: Error handling
-  snapshot_download(repo_id=SUBMISSIONS_REPO, repo_type='dataset', allow_patterns="*.json", local_dir=SUBMISSION_DIR)
-
-
-def load_submissions(root_path=SUBMISSION_DIR):
-  submissions = []
-  for file in os.listdir(root_path):
-    if file.endswith('.json'):
-      fp = root_path + file
-      with open(fp, 'r') as infile:
-        submissions.append((fp, json.load(infile)))
-  return submissions
-
-
-def update_request(data: dict, new_status: str, local_path: str):
-    """Updates a given eval request with its new status on the hub (running, completed, failed,)"""
-    with open(local_path) as fp:
-        data = json.load(fp)
-
-    data["status"] = new_status
-
-    with open(local_path, "w") as f:
-        f.write(json.dumps(data))
-
-    API.upload_file(
-        path_or_fileobj=local_path,
-        path_in_repo=os.path.relpath(local_path, start=SUBMISSION_DIR),
-        repo_id=SUBMISSIONS_REPO,
-        repo_type='dataset',
-    )
-
-def upload_results(results_path: str):
-    basename = os.path.basename(results_path)
-    API.upload_file(
-       path_or_fileobj=results_path,
-       path_in_repo=os.path.join("submissions", basename),
-       repo_id=RESULTS_REPO,
-       repo_type='dataset'
-    )
-
-def filter_status(submissions, status=STATUS_PENDING):
-  return [s for s in submissions if s[1]['status'].strip() == status]
-
-
-def download_circuit(url, rootdir=''):
-  fname = os.path.basename(urlparse(url).path)
-
-  # TODO: Error handling
-  if rootdir:
-    filepath = os.path.join(rootdir, fname)
-  else:
-    filepath = fname
-
-  req.urlretrieve(url, filepath)
-  return filepath
+from util import update_request, fetch_submissions, load_submissions, filter_status, upload_results, parse_huggingface_url, data_to_saveable_name
+from const import *
 
 def main():
   # 1. Fetch submissions
   # 2. Check request status, filter PENDING
   login(os.environ['HF_API_KEY'])
   os.makedirs("logs/", exist_ok=True)
+  API = HfApi()
 
   fetch_submissions()
+  submissions = load_submissions()
+  print(f"Found {len(submissions)} submissions.")
 
-  submissions = filter_status(load_submissions())
+  # Run only submissions which are set as QUEUED by the 
+  submissions = filter_status(submissions, status=STATUS_QUEUED)
   if len(submissions) == 0:
-    print("No submissions to evaluate. Returning.")
+    print("No submissions set to be queued. Returning.")
     return
-  pprint(submissions[0])
 
+  print(f"Executing eval for {len(submissions)} submissions.")
   output_dir = "eval_results"
 
   with tempfile.TemporaryDirectory() as temp_dir:
     for sub in submissions:
       filepath, data = sub
-      # 3. Download circuit (all submissions are PENDING)
+      # 3. Download circuit (all submissions are QUEUED)
       circuit_path = data['hf_repo']
       level = data['circuit_level']
       method_name = data['method_name']
@@ -156,10 +59,12 @@ def main():
       submission_repo, submission_prefix, revision = parse_huggingface_url(circuit_path)
       suffixes = ('.pt', '.json')
       revision = data['revision']
-      snapshot_download(repo_id=submission_repo, allow_patterns=[f"{submission_prefix}*{suffix}" for suffix in suffixes],
-                        revision=revision, local_dir=CIRCUITS_DIR)
 
-      local_circuit_path = os.path.join(CIRCUITS_DIR, submission_prefix)
+      local_temp_dir = os.path.join(temp_dir, CIRCUITS_DIR)
+      snapshot_download(repo_id=submission_repo, allow_patterns=[f"{submission_prefix}*{suffix}" for suffix in suffixes],
+                        revision=revision, local_dir=local_temp_dir)
+
+      local_circuit_path = os.path.join(local_temp_dir, submission_prefix)
 
       circuit_dirs, tasks, model_names = [], [], []
       # Generate info required for circuit eval
@@ -194,6 +99,14 @@ def main():
       #       else: use 40G GPU
       # TODO (Aaron): make compatible with multiple-circuit-file submissions, instead of just importances
       output_path = os.path.join(output_dir, method_name_saveable)
+
+      # 4.1
+      # Label the submission as running
+      logging.info("Updating request status; uploading update to requests repo.")
+      try:
+        update_request(API, data, STATUS_RUNNING, filepath)
+      except Exception as e:
+        logging.error(f"Error updating status of request: {e}. Should retry.")
 
       for idx in range(len(circuit_dirs)):
         circuit_dir = circuit_dirs[idx]
@@ -280,7 +193,7 @@ def main():
           
       logging.info("Uploading results.")
       try:
-        upload_results(results_aggregated_path)
+        upload_results(API, results_aggregated_path)
       except Exception as e:
         logging.error(f"Error uploading results: {e}. Should retry.")
     
@@ -288,7 +201,7 @@ def main():
       # mib-bench/requests-subgraph
       logging.info("Updating request status; uploading update to requests repo.")
       try:
-        update_request(data, new_status, filepath)
+        update_request(API, data, new_status, filepath)
       except Exception as e:
         logging.error(f"Error updating status of request: {e}. Should retry.")
 

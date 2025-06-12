@@ -4,3 +4,4 @@ hf_token.txt
 eval_circuits/*
 circuits/*
 submissions/*
+slurm_scripts/*
