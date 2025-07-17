@@ -117,6 +117,7 @@ def main():
         split = "test"
         # We need to run evals with and without absolute to match our paper's eval setting
         for absolute in (True, False):
+          results = None # In case run_eval breaks
           try:
             results = run_evaluation(circuit_dir, model_name, task, split, method_name, level, batch_size=20, head=None,
                         absolute=absolute)

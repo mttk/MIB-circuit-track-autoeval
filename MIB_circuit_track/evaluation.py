@@ -21,7 +21,7 @@ def evaluate_area_under_curve(model: HookedTransformer, graph: Graph, dataloader
     baseline_score = evaluate_baseline(model, dataloader, metrics).mean().item()
     graph.apply_topn(0, True)
     corrupted_score = evaluate_graph(model, graph, dataloader, metrics, quiet=quiet, intervention=intervention, 
-                                     intervention_dataloader=intervention_dataloader, optimal_ablation_path=optimal_ablation_path).mean().item()
+                                     intervention_dataloader=intervention_dataloader).mean().item() # ,  optimal_ablation_path=optimal_ablation_path
     
     if level == 'neuron':
         assert graph.neurons_scores is not None, "Neuron scores must be present for neuron-level evaluation"
@@ -52,7 +52,8 @@ def evaluate_area_under_curve(model: HookedTransformer, graph: Graph, dataloader
         ablated_score = evaluate_graph(model, this_graph, dataloader, metrics,
                                        quiet=quiet, intervention=intervention,
                                        intervention_dataloader=intervention_dataloader,
-                                       optimal_ablation_path=optimal_ablation_path).mean().item()
+                                       # optimal_ablation_path=optimal_ablation_path
+                                       ).mean().item()
         if no_normalize:
             faithfulness = ablated_score
         else:
@@ -87,7 +88,9 @@ def evaluate_area_under_curve_multifile(circuit_path: str, model: HookedTransfor
     new_graph = Graph.from_model(model)
     new_graph.apply_topn(0, True)
     corrupted_score = evaluate_graph(model, new_graph, dataloader, metrics, quiet=quiet, intervention=intervention, 
-                                     intervention_dataloader=intervention_dataloader, optimal_ablation_path=optimal_ablation_path).mean().item()
+                                     intervention_dataloader=intervention_dataloader,
+                                     # optimal_ablation_path=optimal_ablation_path
+                                     ).mean().item()
     
     weighted_edge_counts, faithfulnesses = [], []
     num_valid_circuits = 0
@@ -108,7 +111,8 @@ def evaluate_area_under_curve_multifile(circuit_path: str, model: HookedTransfor
         ablated_score = evaluate_graph(model, graph, dataloader, metrics,
                                        quiet=quiet, intervention=intervention,
                                        intervention_dataloader=intervention_dataloader,
-                                       optimal_ablation_path=optimal_ablation_path).mean().item()
+                                       # optimal_ablation_path=optimal_ablation_path
+                                       ).mean().item()
         if no_normalize:
             faithfulness = ablated_score
         else:
