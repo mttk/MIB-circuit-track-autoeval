@@ -23,7 +23,7 @@ def main():
   submissions = load_submissions()
   print(f"Found {len(submissions)} submissions.")
 
-  # Run only submissions which are set as QUEUED by the 
+  # Run only submissions which are set as QUEUED by the check_submissions script
   submissions = filter_status(submissions, status=STATUS_QUEUED)
   if len(submissions) == 0:
     print("No submissions set to be queued. Returning.")
