@@ -35,7 +35,7 @@ def main():
 
 
   API = HfApi()
-  login(os.environ['HF_API_KEY'])
+  login(os.environ['MIB_HF_KEY'])
 
   fetch_submissions()
   submissions = load_submissions()

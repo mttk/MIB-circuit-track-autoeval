@@ -15,7 +15,7 @@ from const import *
 def main():
   # 1. Fetch submissions
   # 2. Check request status, filter PENDING
-  login(os.environ['HF_API_KEY'])
+  login(os.environ['MIB_HF_KEY'])
   os.makedirs("logs/", exist_ok=True)
   API = HfApi()
 
