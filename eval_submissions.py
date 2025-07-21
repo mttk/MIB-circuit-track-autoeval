@@ -42,6 +42,10 @@ def main():
       user_name = data['user_name']
       submission_id = data['_id']
       submit_time = data['submit_time']
+      if "description" in data:
+        description = data["description"]
+      else:
+        description = ""
 
       method_name_saveable = f"{user_name}_{method_name}_{submission_id}_{submit_time}"
       logging.basicConfig(
@@ -157,6 +161,7 @@ def main():
       # mib-bench/subgraph-results
       logging.info("Collecting results.")
       results_aggregated = {"method_name": method_name,
+                            "description": description,
                             "results": []}
       results_by_model = {}
       for results_file in os.listdir(output_path):
