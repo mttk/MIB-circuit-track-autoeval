@@ -25,7 +25,7 @@ def main():
   print(submissions)
 
   # Run only submissions which are set as QUEUED by the check_submissions script
-  submissions = filter_status(submissions, status=STATUS_PENDING)
+  submissions = filter_status(submissions, status=STATUS_FAILED) # STATUS_PENDING
   if len(submissions) == 0:
     print("No submissions set to be queued. Returning.")
     return
@@ -279,6 +279,7 @@ def main():
       # mib-bench/subgraph-results
       logging.info("Collecting results.")
       results_aggregated = {"method_name": method_name,
+                            "description": description,
                             "results": []}
       results_by_model = {}
       for results_file in os.listdir(output_path):
