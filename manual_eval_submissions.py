@@ -218,7 +218,7 @@ def main():
           os.makedirs(output_path, exist_ok=True)
           
           # Include path info in filename if from subdirectory
-          path_suffix = f"_{path_info.replace('/', '#')}" if path_info != f"{task}_{model_name}" else ""
+          path_suffix = f"_{path_info.replace('/', '_')}" if path_info != f"{task}_{model_name}" else ""
           filename = f"{output_path}/{task}_{model_name}{path_suffix}_abs-{absolute}.pkl"
           
           with open(filename, 'wb') as f:
