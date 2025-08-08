@@ -262,6 +262,7 @@ def main():
         logging.error("No valid results.")
         new_status = STATUS_FAILED
       for filename in os.listdir(output_path):
+        print(filename)
         task, model, _, _ = filename.split("_")
         tasks.add(task)
         models.add(model)
