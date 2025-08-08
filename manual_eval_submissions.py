@@ -22,7 +22,11 @@ def main():
   fetch_submissions()
   submissions = load_submissions()
   print(f"Found {len(submissions)} submissions.")
-  print(submissions)
+  # print(submissions)
+  for submission in submissions:
+    print(submission['method_name'])
+    print(submission['user_name'])
+    print(submission['status'])
 
   # Run only submissions which are set as QUEUED by the check_submissions script
   submissions = filter_status(submissions, status=STATUS_PENDING) #  STATUS_FAILED
