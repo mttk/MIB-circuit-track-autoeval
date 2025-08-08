@@ -263,7 +263,11 @@ def main():
         new_status = STATUS_FAILED
       for filename in os.listdir(output_path):
         print(filename)
-        task, model, _, _ = filename.split("_")
+        parts = filename.split("_")
+        task = parts[0]
+        model = parts[1]
+
+        # task, model, _, _ = filename.split("_")
         tasks.add(task)
         models.add(model)
       if len(tasks) < 2:
@@ -288,7 +292,11 @@ def main():
           continue
         fp = os.path.join(output_path, results_file)
         print(results_file)
-        task_name, model_name, _, is_absolute = results_file.split("_")
+        parts = results_file.split("_")
+        task_name = parts[0]
+        model_name = parts[1]
+        is_absolute = parts[-1]
+        # task_name, model_name, _, is_absolute = results_file.split("_")
         task_name = task_name.replace("-", "_")
         if model_name not in results_by_model:
           results_by_model[model_name] = {}
