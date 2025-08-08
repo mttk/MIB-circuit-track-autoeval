@@ -25,7 +25,7 @@ def main():
   print(submissions)
 
   # Run only submissions which are set as QUEUED by the check_submissions script
-  submissions = filter_status(submissions, status=STATUS_RUNNING) #  STATUS_FAILED # STATUS_PENDING
+  submissions = filter_status(submissions, status=STATUS_PENDING) #  STATUS_FAILED
   if len(submissions) == 0:
     print("No submissions set to be queued. Returning.")
     return
