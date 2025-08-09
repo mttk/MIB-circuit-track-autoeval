@@ -37,6 +37,12 @@ def fetch_submissions():
   # TODO: Error handling
   snapshot_download(repo_id=SUBMISSIONS_REPO, repo_type='dataset', allow_patterns="*.json", local_dir=SUBMISSION_DIR)
 
+def fetch_submission(hf_repo, circuit_level="edge"):
+  # TODO: Error handling
+  obj = {"hf_repo": hf_repo, "method_name": "test", "circuit_level": circuit_level,
+         "description": None, "status": "PENDING"}
+  return obj
+
 def load_submissions(root_path=SUBMISSION_DIR):
   submissions = []
   for file in os.listdir(root_path):
