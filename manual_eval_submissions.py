@@ -27,6 +27,7 @@ def main():
     print(submission[1]['method_name'])
     print(submission[1]['user_name'])
     print(submission[1]['status'])
+    print("-"*20)
 
   # Run only submissions which are set as QUEUED by the check_submissions script
   submissions = filter_status(submissions, status=STATUS_PENDING) #  STATUS_FAILED
@@ -38,7 +39,7 @@ def main():
   output_dir = "eval_results"
 
   with tempfile.TemporaryDirectory() as temp_dir:
-    for sub in submissions:
+    for sub in submissions[:1]: # Just a sanity check
       filepath, data = sub
       # 3. Download circuit (all submissions are QUEUED)
       circuit_path = data['hf_repo']
