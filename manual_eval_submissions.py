@@ -35,7 +35,9 @@ def main():
     print("No submissions set to be queued. Returning.")
     return
 
-  print(f"Executing eval for {len(submissions)} submissions.")
+  # print(f"Executing eval for {len(submissions)} submissions.")
+  print(f"Executing eval for {submissions[0][1]}.")
+  
   output_dir = "eval_results"
 
   with tempfile.TemporaryDirectory() as temp_dir:
